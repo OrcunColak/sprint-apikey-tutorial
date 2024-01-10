@@ -15,6 +15,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.channel.ChannelProcessingFilter;
+import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @RequiredArgsConstructor
@@ -42,13 +43,15 @@ public class SpringSecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain filterChainWebAppication(HttpSecurity http) throws Exception {
-
+    public SecurityFilterChain filterChainWebApplication(HttpSecurity http) throws Exception {
         final String[] AUTH_WHITE_LIST = {
                 "/v3/api-docs/**",
                 "/swagger-ui/**",
                 "/v2/api-docs/**",
-                "/swagger-resources/**"
+                "/swagger-resources/**",
+
+                // Allow ReflectedXSSDemoController
+                "/api/xss/**"
         };
 
         http.authorizeHttpRequests(authorizeHttpRequestsCustomizer -> authorizeHttpRequestsCustomizer
@@ -56,6 +59,21 @@ public class SpringSecurityConfig {
                 .requestMatchers(AUTH_WHITE_LIST).permitAll()
                 .requestMatchers("/**").authenticated()
                 .anyRequest().authenticated()
+        );
+
+        http.headers(
+                header -> header
+                        // ENABLED : Add this header = X-XSS-Protection: 1
+                        //If a cross-site scripting attack is detected, the browser will sanitize the page (remove the unsafe parts).
+
+                        // ENABLED_MODE_BLOCK  Add this header = X-XSS-Protection: 1; mode=block
+                        // Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected.
+                        .xssProtection(xss -> xss.headerValue(XXssProtectionHeaderWriter.HeaderValue.ENABLED))
+
+                        // Add this header = Content-Security-Policy = script-src 'self'
+                        // It means that the web page allows JavaScript code to be executed only if it originates
+                        // from the same origin as the page itself.
+                        .contentSecurityPolicy(cs -> cs.policyDirectives("script-src 'self'"))
         );
 
         http.formLogin(formLoginCustomizer -> formLoginCustomizer
